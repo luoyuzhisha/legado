@@ -63,10 +63,11 @@ android {
                 arguments += [
                         "room.incremental"     : "true",
                         "room.expandProjection": "true",
-                        "room.schemaLocation"  : "$projectDir/schemas".toString()
+                        "room.schemaLocation"  : "$projectDir/schemas"
                 ]
             }
         }
+
     }
     buildFeatures {
         buildConfig true
