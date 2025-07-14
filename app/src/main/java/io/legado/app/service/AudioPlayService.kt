@@ -36,6 +36,7 @@ import io.legado.app.help.exoplayer.ExoPlayerHelper
 import io.legado.app.help.glide.ImageLoader
 import io.legado.app.model.AudioPlay
 import io.legado.app.model.analyzeRule.AnalyzeUrl
+import io.legado.app.model.analyzeRule.AnalyzeUrl.Companion.getMediaItem
 import io.legado.app.receiver.MediaButtonReceiver
 import io.legado.app.ui.book.audio.AudioPlayActivity
 import io.legado.app.utils.activityPendingIntent
@@ -84,6 +85,13 @@ class AudioPlayService : BaseService(),
 
         private const val APP_ACTION_STOP = "Stop"
         private const val APP_ACTION_TIMER = "Timer"
+        private const val TAG = "AudioPlayService"
+        
+        // WakeLock超时时间设置为6小时
+        private const val WAKE_LOCK_TIMEOUT = 6 * 60 * 60 * 1000L // 6小时超时
+        
+        // WakeLock重置间隔，每30分钟重置一次
+        private const val WAKE_LOCK_RESET_INTERVAL = 30 * 60 * 1000L // 30分钟
     }
 
     private val useWakeLock = AppConfig.audioPlayUseWakeLock
@@ -115,6 +123,9 @@ class AudioPlayService : BaseService(),
     private var playSpeed: Float = 1f
     private var cover: Bitmap =
         BitmapFactory.decodeResource(appCtx.resources, R.drawable.icon_read_book)
+    
+    // 用于重置WakeLock的Job
+    private var wakeLockResetJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -125,16 +136,24 @@ class AudioPlayService : BaseService(),
         initBroadcastReceiver()
         upMediaSessionPlaybackState(PlaybackStateCompat.STATE_PLAYING)
         doDs()
+        
+        // 初始化WakeLock和WiFiLock
+        if (useWakeLock) {
+            wakeLock.setReferenceCounted(false)
+            wifiLock.setReferenceCounted(false)
+        }
+        
         execute {
-            @Suppress("BlockingMethodInNonBlockingContext")
             ImageLoader
                 .loadBitmap(this@AudioPlayService, AudioPlay.book?.getDisplayCover())
                 .submit()
                 .get()
         }.onSuccess {
-            cover = it
-            upMediaMetadata()
-            upAudioPlayNotification()
+            if (it.width > 16 && it.height > 16) {
+                cover = it
+                upMediaMetadata()
+                upAudioPlayNotification()
+            }
         }
     }
 
@@ -186,8 +205,18 @@ class AudioPlayService : BaseService(),
     override fun onDestroy() {
         super.onDestroy()
         if (useWakeLock) {
-            wakeLock.release()
-            wifiLock?.release()
+            // 取消WakeLock重置Job
+            wakeLockResetJob?.cancel()
+            try {
+                wakeLock.release()
+            } catch (e: Exception) {
+                AppLog.put("释放WakeLock失败: ${e.localizedMessage}", e)
+            }
+            try {
+                wifiLock?.release()
+            } catch (e: Exception) {
+                AppLog.put("释放WiFiLock失败: ${e.localizedMessage}", e)
+            }
         }
         isRun = false
         abandonFocus()
@@ -198,6 +227,14 @@ class AudioPlayService : BaseService(),
         AudioPlay.status = Status.STOP
         postEvent(EventBus.AUDIO_STATE, Status.STOP)
         AudioPlay.unregisterService()
+        
+        // 确保在销毁时停止前台服务
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            stopForeground(true)
+        }
+        
         upNotificationJob?.invokeOnCompletion {
             notificationManager.cancel(NotificationId.AudioPlayService)
         }
@@ -209,8 +246,29 @@ class AudioPlayService : BaseService(),
     @SuppressLint("WakelockTimeout")
     private fun play() {
         if (useWakeLock) {
-            wakeLock.acquire()
-            wifiLock?.acquire()
+            try {
+                wakeLock.acquire(WAKE_LOCK_TIMEOUT)
+                // 启动WakeLock重置Job
+                wakeLockResetJob?.cancel()
+                wakeLockResetJob = lifecycleScope.launch {
+                    while (exoPlayer.playWhenReady) {
+                        delay(WAKE_LOCK_RESET_INTERVAL)
+                        try {
+                            wakeLock.release()
+                            wakeLock.acquire(WAKE_LOCK_TIMEOUT)
+                        } catch (e: Exception) {
+                            AppLog.put("重置WakeLock失败: ${e.localizedMessage}", e)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                AppLog.put("获取WakeLock失败: ${e.localizedMessage}", e)
+            }
+            try {
+                wifiLock?.acquire()
+            } catch (e: Exception) {
+                AppLog.put("获取WiFiLock失败: ${e.localizedMessage}", e)
+            }
         }
         upAudioPlayNotification()
         if (!requestFocus()) {
@@ -613,6 +671,19 @@ class AudioPlayService : BaseService(),
             try {
                 val notification = createNotification()
                 notificationManager.notify(NotificationId.AudioPlayService, notification.build())
+                
+                // 在Android 12+上，需要更新前台服务的通知
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        startForeground(
+                            NotificationId.AudioPlayService,
+                            notification.build(),
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                        )
+                    } catch (e: Exception) {
+                        AppLog.put("更新前台服务通知失败,${e.localizedMessage}", e)
+                    }
+                }
             } catch (e: Exception) {
                 AppLog.put("创建音频播放通知出错,${e.localizedMessage}", e, true)
             }
@@ -626,7 +697,15 @@ class AudioPlayService : BaseService(),
         execute {
             try {
                 val notification = createNotification()
-                startForeground(NotificationId.AudioPlayService, notification.build())
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(
+                        NotificationId.AudioPlayService,
+                        notification.build(),
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                    )
+                } else {
+                    startForeground(NotificationId.AudioPlayService, notification.build())
+                }
             } catch (e: Exception) {
                 AppLog.put("创建音频播放通知出错,${e.localizedMessage}", e, true)
                 //创建通知出错不结束服务就会崩溃,服务必须绑定通知

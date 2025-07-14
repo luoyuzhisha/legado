@@ -41,6 +41,7 @@ import io.legado.app.help.http.postMultipart
 import io.legado.app.help.source.getShareScope
 import io.legado.app.utils.EncoderUtils
 import io.legado.app.utils.GSON
+import io.legado.app.utils.GSONStrict
 import io.legado.app.utils.NetworkUtils
 import io.legado.app.utils.fromJsonArray
 import io.legado.app.utils.fromJsonObject
@@ -73,12 +74,12 @@ import kotlin.math.max
 @Keep
 @SuppressLint("DefaultLocale")
 class AnalyzeUrl(
-    val mUrl: String,
-    val key: String? = null,
-    val page: Int? = null,
-    val speakText: String? = null,
-    val speakSpeed: Int? = null,
-    var baseUrl: String = "",
+    private val mUrl: String,
+    private val key: String? = null,
+    private val page: Int? = null,
+    private val speakText: String? = null,
+    private val speakSpeed: Int? = null,
+    private var baseUrl: String = "",
     private val source: BaseSource? = null,
     private val ruleData: RuleDataInterface? = null,
     private val chapter: BookChapter? = null,
@@ -88,22 +89,15 @@ class AnalyzeUrl(
     headerMapF: Map<String, String>? = null,
     hasLoginHeader: Boolean = true
 ) : JsExtensions {
-    companion object {
-        val paramPattern: Pattern = Pattern.compile("\\s*,\\s*(?=\\{)")
-        private val pagePattern = Pattern.compile("<(.*?)>")
-        private val queryEncoder =
-            RFC3986.UNRESERVED.orNew(PercentCodec.of("!$%&()*+,/:;=?@[\\]^`{|}"))
-    }
 
     var ruleUrl = ""
         private set
     var url: String = ""
         private set
-    var body: String? = null
-        private set
     var type: String? = null
         private set
-    val headerMap = HashMap<String, String>()
+    val headerMap = LinkedHashMap<String, String>()
+    private var body: String? = null
     private var urlNoQuery: String = ""
     private var encodedForm: String? = null
     private var encodedQuery: String? = null
@@ -225,30 +219,37 @@ class AnalyzeUrl(
             baseUrl = it
         }
         if (urlNoOption.length != ruleUrl.length) {
-            GSON.fromJsonObject<UrlOption>(ruleUrl.substring(urlMatcher.end())).getOrNull()
-                ?.let { option ->
-                    option.getMethod()?.let {
-                        if (it.equals("POST", true)) method = RequestMethod.POST
-                    }
-                    option.getHeaderMap()?.forEach { entry ->
-                        headerMap[entry.key.toString()] = entry.value.toString()
-                    }
-                    option.getBody()?.let {
-                        body = it
-                    }
-                    type = option.getType()
-                    charset = option.getCharset()
-                    retry = option.getRetry()
-                    useWebView = option.useWebView()
-                    webJs = option.getWebJs()
-                    option.getJs()?.let { jsStr ->
-                        evalJS(jsStr, url)?.toString()?.let {
-                            url = it
-                        }
-                    }
-                    serverID = option.getServerID()
-                    webViewDelayTime = max(0, option.getWebViewDelayTime() ?: 0)
+            val urlOptionStr = ruleUrl.substring(urlMatcher.end())
+            var urlOption = GSONStrict.fromJsonObject<UrlOption>(urlOptionStr).getOrNull()
+            if (urlOption == null) {
+                urlOption = GSON.fromJsonObject<UrlOption>(urlOptionStr).getOrNull()
+                if (urlOption != null) {
+                    log("链接参数 JSON 格式不规范，请改为规范格式")
                 }
+            }
+            urlOption?.let { option ->
+                option.getMethod()?.let {
+                    if (it.equals("POST", true)) method = RequestMethod.POST
+                }
+                option.getHeaderMap()?.forEach { entry ->
+                    headerMap[entry.key.toString()] = entry.value.toString()
+                }
+                option.getBody()?.let {
+                    body = it
+                }
+                type = option.getType()
+                charset = option.getCharset()
+                retry = option.getRetry()
+                useWebView = option.useWebView()
+                webJs = option.getWebJs()
+                option.getJs()?.let { jsStr ->
+                    evalJS(jsStr, url)?.toString()?.let {
+                        url = it
+                    }
+                }
+                serverID = option.getServerID()
+                webViewDelayTime = max(0, option.getWebViewDelayTime() ?: 0)
+            }
         }
         urlNoQuery = url
         when (method) {
@@ -357,9 +358,13 @@ class AnalyzeUrl(
             bindings["source"] = source
             bindings["result"] = result
         }
-        val scope = RhinoScriptEngine.getRuntimeScope(bindings)
-        source?.getShareScope(coroutineContext)?.let {
-            scope.prototype = it
+        val sharedScope = source?.getShareScope(coroutineContext)
+        val scope = if (sharedScope == null) {
+            RhinoScriptEngine.getRuntimeScope(bindings)
+        } else {
+            bindings.apply {
+                prototype = sharedScope
+            }
         }
         return RhinoScriptEngine.eval(jsStr, scope, coroutineContext)
     }
@@ -528,6 +533,9 @@ class AnalyzeUrl(
     }
 
     private fun getByteArrayIfDataUri(): ByteArray? {
+        if (!urlNoQuery.startsWith("data:")) {
+            return null
+        }
         val dataUriFindResult = dataUriRegex.find(urlNoQuery)
         if (dataUriFindResult != null) {
             val dataUriBase64 = dataUriFindResult.groupValues[1]
@@ -641,11 +649,6 @@ class AnalyzeUrl(
         return GlideUrl(url, GlideHeaders(headerMap))
     }
 
-    fun getMediaItem(): MediaItem {
-        setCookie()
-        return ExoPlayerHelper.createMediaItem(url, headerMap)
-    }
-
     fun getUserAgent(): String {
         return headerMap.get(UA_NAME, true) ?: AppConfig.userAgent
     }
@@ -656,6 +659,19 @@ class AnalyzeUrl(
 
     override fun getSource(): BaseSource? {
         return source
+    }
+
+    companion object {
+        val paramPattern: Pattern = Pattern.compile("\\s*,\\s*(?=\\{)")
+        private val pagePattern = Pattern.compile("<(.*?)>")
+        private val queryEncoder =
+            RFC3986.UNRESERVED.orNew(PercentCodec.of("!$%&()*+,/:;=?@[\\]^`{|}"))
+
+        fun AnalyzeUrl.getMediaItem(): MediaItem {
+            setCookie()
+            return ExoPlayerHelper.createMediaItem(url, headerMap)
+        }
+
     }
 
     @Keep

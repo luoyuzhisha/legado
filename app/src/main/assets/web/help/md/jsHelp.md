@@ -17,6 +17,8 @@
 
 > 不同的书源规则中支持的调用的Java类和方法可能有所不同
 
+> 注意使用 `const` 声明的变量不支持块级作用域，在循环里使用会出现值不变的问题，请改用 `var` 声明
+
 |变量名|调用类|
 |------|-----|
 |java|当前类|
@@ -37,12 +39,13 @@
 ### [RssJsExtensions](https://github.com/gedoor/legado/blob/master/app/src/main/java/io/legado/app/ui/rss/read/RssJsExtensions.kt)
 > 只能在订阅源`shouldOverrideUrlLoading`规则中使用  
 > 订阅添加跳转url拦截, js, 返回true拦截,js变量url,可以通过js打开url  
+> url跳转拦截规则不能执行耗时操作
 > 例子https://github.com/gedoor/legado/discussions/3259
 
 * 调用阅读搜索
 
 ```js
-java.searchBook(bookName: string)
+java.searchBook(bookName: String)
 ```
 
 * 添加书架
@@ -85,7 +88,7 @@ java.getElements(ruleStr: String)
 
 * 重新搜索书籍/重新获取目录url
 
-> 可以在刷新目录之前使用,有些书源书籍地址和目录url会变
+> 只能在刷新目录之前使用,有些书源书籍地址和目录url会变
 
 ```js
 java.reGetBook()
@@ -112,8 +115,8 @@ java.getWebViewUA(): String
 * 网络请求
 ```js
 java.ajax(urlStr): String
-java.ajaxAll(urlList: Array<String>): Array<StrResponse?>
-//返回Response 方法body() code() message() header() raw() toString() 
+java.ajaxAll(urlList: Array<String>): Array<StrResponse>
+//返回StrResponse 方法body() code() message() headers() raw() toString() 
 java.connect(urlStr): StrResponse
 
 java.post(url: String, body: String, headerMap: Map<String, String>): Connection.Response
@@ -171,7 +174,7 @@ java.cacheFile(url)
 java.cacheFile(url,saveTime)
 执行内容
 eval(String(java.cacheFile(url)))
-删除缓存文件
+使缓存失效
 cache.delete(java.md5Encode16(url))
 ```
 * 获取网络压缩文件里面指定路径的数据 *可替换Zip Rar 7Z
@@ -229,6 +232,11 @@ java.s2t(text: String): String
 * 时间格式化
 ```js
 java.timeFormatUTC(time: Long, format: String, sh: Int): String?
+java.timeFormat(time: Long): String
+```
+* html格式化
+```js
+java.htmlFormat(str: String): String
 ```
 * 文件
 >  所有对于文件的读写删操作都是相对路径,只能操作阅读缓存/android/data/{package}/cache/内的文件
@@ -438,10 +446,11 @@ cache.putFile(key: String, value: String, saveTime: Int)
 读取文件内容
 cache.getFile(key: String): String?
 保存到内存
-cache.deleteMemory(key: String)
-cache.getFromMemory(key: String): Any?
 cache.putMemory(key: String, value: Any)
-
+读取内存
+cache.getFromMemory(key: String): Any?
+删除内存
+cache.deleteMemory(key: String)
 ```
 
 ## 跳转外部链接/应用函数

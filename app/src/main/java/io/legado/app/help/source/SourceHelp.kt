@@ -4,8 +4,14 @@ import io.legado.app.constant.SourceType
 import io.legado.app.data.appDb
 import io.legado.app.data.entities.BaseSource
 import io.legado.app.data.entities.BookSource
+import io.legado.app.data.entities.BookSourcePart
 import io.legado.app.data.entities.RssSource
+import io.legado.app.help.AppCacheManager
+import io.legado.app.help.config.SourceConfig
 import io.legado.app.help.coroutine.Coroutine
+import io.legado.app.model.AudioPlay
+import io.legado.app.model.ReadBook
+import io.legado.app.model.ReadManga
 import io.legado.app.utils.EncoderUtils
 import io.legado.app.utils.NetworkUtils
 import io.legado.app.utils.splitNotBlank
@@ -27,6 +33,13 @@ object SourceHelp {
 
     fun getSource(key: String?): BaseSource? {
         key ?: return null
+        if (ReadBook.bookSource?.bookSourceUrl == key) {
+            return ReadBook.bookSource
+        } else if (AudioPlay.bookSource?.bookSourceUrl == key) {
+            return AudioPlay.bookSource
+        } else if (ReadManga.bookSource?.bookSourceUrl == key) {
+            return ReadManga.bookSource
+        }
         return appDb.bookSourceDao.getBookSource(key)
             ?: appDb.rssSourceDao.getByKey(key)
     }
@@ -42,9 +55,58 @@ object SourceHelp {
 
     fun deleteSource(key: String, @SourceType.Type type: Int) {
         when (type) {
-            SourceType.book -> appDb.bookSourceDao.delete(key)
-            SourceType.rss -> appDb.rssSourceDao.delete(key)
+            SourceType.book -> deleteBookSource(key)
+            SourceType.rss -> deleteRssSource(key)
         }
+    }
+
+    fun deleteBookSourceParts(sources: List<BookSourcePart>) {
+        appDb.runInTransaction {
+            sources.forEach {
+                deleteBookSourceInternal(it.bookSourceUrl)
+            }
+        }
+        AppCacheManager.clearSourceVariables()
+    }
+
+    fun deleteBookSources(sources: List<BookSource>) {
+        appDb.runInTransaction {
+            sources.forEach {
+                deleteBookSourceInternal(it.bookSourceUrl)
+            }
+        }
+        AppCacheManager.clearSourceVariables()
+    }
+
+    private fun deleteBookSourceInternal(key: String) {
+        appDb.bookSourceDao.delete(key)
+        appDb.cacheDao.deleteSourceVariables(key)
+        SourceConfig.removeSource(key)
+    }
+
+    fun deleteBookSource(key: String) {
+        deleteBookSourceInternal(key)
+        AppCacheManager.clearSourceVariables()
+    }
+
+    fun deleteRssSources(sources: List<RssSource>) {
+        appDb.runInTransaction {
+            sources.forEach {
+                deleteRssSourceInternal(it.sourceUrl)
+            }
+        }
+        AppCacheManager.clearSourceVariables()
+    }
+
+    private fun deleteRssSourceInternal(key: String) {
+        appDb.rssSourceDao.delete(key)
+        appDb.rssArticleDao.delete(key)
+        appDb.cacheDao.deleteSourceVariables(key)
+    }
+
+    fun deleteRssSource(key: String) {
+        deleteRssSourceInternal(key)
+        AppCacheManager.clearSourceVariables()
     }
 
     fun enableSource(key: String, @SourceType.Type type: Int, enable: Boolean) {

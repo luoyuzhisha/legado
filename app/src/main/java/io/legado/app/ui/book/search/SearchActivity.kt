@@ -12,7 +12,9 @@ import androidx.activity.viewModels
 import androidx.appcompat.widget.SearchView
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.flexbox.FlexboxLayoutManager
@@ -44,10 +46,12 @@ import io.legado.app.utils.putPrefBoolean
 import io.legado.app.utils.setEdgeEffectColor
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.startActivity
+import io.legado.app.utils.transaction
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
 import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flowOn
@@ -109,40 +113,42 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
     }
 
     override fun onMenuOpened(featureId: Int, menu: Menu): Boolean {
-        menu.removeGroup(R.id.menu_group_1)
-        menu.removeGroup(R.id.menu_group_2)
-        var hasChecked = false
-        val searchScopeNames = viewModel.searchScope.displayNames
-        if (viewModel.searchScope.isSource()) {
-            menu.add(R.id.menu_group_1, Menu.NONE, Menu.NONE, searchScopeNames.first()).apply {
-                isChecked = true
-                hasChecked = true
-            }
-        }
-        val allSourceMenu =
-            menu.add(R.id.menu_group_2, R.id.menu_1, Menu.NONE, getString(R.string.all_source))
-                .apply {
-                    if (searchScopeNames.isEmpty()) {
-                        isChecked = true
-                        hasChecked = true
-                    }
-                }
-        groups?.forEach {
-            if (searchScopeNames.contains(it)) {
-                menu.add(R.id.menu_group_1, Menu.NONE, Menu.NONE, it).apply {
+        menu.transaction {
+            menu.removeGroup(R.id.menu_group_1)
+            menu.removeGroup(R.id.menu_group_2)
+            var hasChecked = false
+            val searchScopeNames = viewModel.searchScope.displayNames
+            if (viewModel.searchScope.isSource()) {
+                menu.add(R.id.menu_group_1, Menu.NONE, Menu.NONE, searchScopeNames.first()).apply {
                     isChecked = true
                     hasChecked = true
                 }
-            } else {
-                menu.add(R.id.menu_group_2, Menu.NONE, Menu.NONE, it)
             }
+            val allSourceMenu =
+                menu.add(R.id.menu_group_2, R.id.menu_1, Menu.NONE, getString(R.string.all_source))
+                    .apply {
+                        if (searchScopeNames.isEmpty()) {
+                            isChecked = true
+                            hasChecked = true
+                        }
+                    }
+            groups?.forEach {
+                if (searchScopeNames.contains(it)) {
+                    menu.add(R.id.menu_group_1, Menu.NONE, Menu.NONE, it).apply {
+                        isChecked = true
+                        hasChecked = true
+                    }
+                } else {
+                    menu.add(R.id.menu_group_2, Menu.NONE, Menu.NONE, it)
+                }
+            }
+            if (!hasChecked) {
+                viewModel.searchScope.update("")
+                allSourceMenu.isChecked = true
+            }
+            menu.setGroupCheckable(R.id.menu_group_1, true, false)
+            menu.setGroupCheckable(R.id.menu_group_2, true, true)
         }
-        if (!hasChecked) {
-            viewModel.searchScope.update("")
-            allSourceMenu.isChecked = true
-        }
-        menu.setGroupCheckable(R.id.menu_group_1, true, false)
-        menu.setGroupCheckable(R.id.menu_group_2, true, true)
         return super.onMenuOpened(featureId, menu)
     }
 
@@ -299,6 +305,16 @@ class SearchActivity : VMBaseActivity<ActivityBookSearchBinding, SearchViewModel
         lifecycleScope.launch {
             appDb.bookSourceDao.flowEnabledGroups().collect {
                 groups = it
+            }
+        }
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                viewModel.resume()
+                try {
+                    awaitCancellation()
+                } finally {
+                    viewModel.pause()
+                }
             }
         }
     }

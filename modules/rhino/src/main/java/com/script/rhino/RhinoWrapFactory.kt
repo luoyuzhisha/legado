@@ -25,6 +25,8 @@
 package com.script.rhino
 
 import org.mozilla.javascript.Context
+import org.mozilla.javascript.NativeJavaPackage
+import org.mozilla.javascript.ScriptRuntime
 import org.mozilla.javascript.Scriptable
 import org.mozilla.javascript.WrapFactory
 
@@ -43,6 +45,8 @@ import org.mozilla.javascript.WrapFactory
  */
 object RhinoWrapFactory : WrapFactory() {
 
+    private val factories = hashMapOf<Class<*>, JavaObjectWrapFactory>()
+
     override fun wrapAsJavaObject(
         cx: Context,
         scope: Scriptable?,
@@ -52,15 +56,36 @@ object RhinoWrapFactory : WrapFactory() {
         if (!RhinoClassShutter.visibleToScripts(javaObject)) {
             return null
         }
-        return super.wrapAsJavaObject(cx, scope, javaObject, staticType)
+        return wrapOrNull(scope, javaObject, staticType)
+            ?: super.wrapAsJavaObject(cx, scope, javaObject, staticType)
     }
 
     override fun wrapJavaClass(
-        cx: Context?,
+        cx: Context,
         scope: Scriptable,
         javaClass: Class<*>
-    ): Scriptable? {
+    ): Scriptable {
+        if (!RhinoClassShutter.visibleToScripts(javaClass)) {
+            @Suppress("DEPRECATION")
+            val pkg = NativeJavaPackage(javaClass.name, null)
+            ScriptRuntime.setObjectProtoAndParent(pkg, scope)
+            return pkg
+        }
         return RhinoClassShutter.wrapJavaClass(scope, javaClass)
+    }
+
+    private fun wrapOrNull(
+        scope: Scriptable?,
+        javaObject: Any,
+        staticType: Class<*>?
+    ): Scriptable? {
+        return factories[javaObject.javaClass]?.wrap(scope, javaObject, staticType)
+    }
+
+    fun register(clazz: Class<*>, factory: JavaObjectWrapFactory) {
+        if (!factories.contains(clazz)) {
+            factories.put(clazz, factory)
+        }
     }
 
 }

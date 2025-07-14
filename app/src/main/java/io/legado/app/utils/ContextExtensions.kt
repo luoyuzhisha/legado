@@ -42,6 +42,7 @@ import io.legado.app.data.entities.Book
 import io.legado.app.help.IntentHelp
 import io.legado.app.help.book.isAudio
 import io.legado.app.help.book.isImage
+import io.legado.app.help.book.isLocal
 import io.legado.app.help.config.AppConfig
 import io.legado.app.ui.book.audio.AudioPlayActivity
 import io.legado.app.ui.book.manga.ReadMangaActivity
@@ -66,7 +67,7 @@ fun Context.startActivityForBook(
 ) {
     val cls = when {
         book.isAudio -> AudioPlayActivity::class.java
-        book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
+        !book.isLocal && book.isImage && AppConfig.showMangaUi -> ReadMangaActivity::class.java
         else -> ReadBookActivity::class.java
     }
     val intent = Intent(this, cls)
@@ -373,6 +374,8 @@ fun Context.openFileUri(uri: Uri, type: String? = null) {
         //7.0版本以上
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
+    val uri = if (uri.isContentScheme()) uri
+    else FileProvider.getUriForFile(this, AppConst.authority, File(uri.path!!))
     intent.setDataAndType(uri, type ?: IntentType.from(uri))
     try {
         startActivity(intent)

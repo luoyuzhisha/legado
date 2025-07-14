@@ -45,8 +45,8 @@ import java.util.Collections
  */
 object RhinoClassShutter : ClassShutter {
 
-    private val protectedClasses by lazy {
-        hashSetOf(
+    private val protectedClassNamesMatcher by lazy {
+        listOf(
             "java.lang.Class",
             "java.lang.ClassLoader",
             "java.net.URLClassLoader",
@@ -55,6 +55,7 @@ object RhinoClassShutter : ClassShutter {
             "java.lang.ProcessImpl",
             "java.lang.UNIXProcess",
             "java.io.File",
+            "java.io.FileDescriptor",
             "java.io.FileInputStream",
             "java.io.FileOutputStream",
             "java.io.PrintStream",
@@ -76,6 +77,8 @@ object RhinoClassShutter : ClassShutter {
             "android.app.ActivityThread",
             "android.app.AppGlobals",
             "android.os.Looper",
+            "android.os.Process",
+            "android.os.FileUtils",
 
             "cn.hutool.core.lang.JarClassLoader",
             "cn.hutool.core.lang.Singleton",
@@ -112,11 +115,31 @@ object RhinoClassShutter : ClassShutter {
             "com.script",
             "org.mozilla",
             "sun",
-        ).let { Collections.unmodifiableSet(it) }
+            "libcore",
+        ).let { ClassNameMatcher(it) }
     }
 
     private val systemClassProtectedName by lazy {
         Collections.unmodifiableSet(hashSetOf("load", "loadLibrary", "exit"))
+    }
+
+    private val protectedClasses by lazy {
+        arrayOf(
+            ClassLoader::class.java,
+            Class::class.java,
+            Member::class.java,
+            Context::class.java,
+            ObjectInputStream::class.java,
+            ObjectOutputStream::class.java,
+            okio.FileSystem::class.java,
+            okio.FileHandle::class.java,
+            okio.Path::class.java,
+            android.content.Context::class.java,
+        ) + if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            arrayOf(FileSystem::class.java, Path::class.java)
+        } else {
+            emptyArray()
+        }
     }
 
     fun visibleToScripts(obj: Any): Boolean {
@@ -141,6 +164,15 @@ object RhinoClassShutter : ClassShutter {
         return visibleToScripts(obj.javaClass.name)
     }
 
+    fun visibleToScripts(clazz: Class<*>): Boolean {
+        protectedClasses.forEach {
+            if (it.isAssignableFrom(clazz)) {
+                return false
+            }
+        }
+        return true
+    }
+
     fun wrapJavaClass(scope: Scriptable, javaClass: Class<*>): Scriptable {
         return when (javaClass) {
             System::class.java -> {
@@ -152,17 +184,7 @@ object RhinoClassShutter : ClassShutter {
     }
 
     override fun visibleToScripts(fullClassName: String): Boolean {
-        if (!protectedClasses.contains(fullClassName)) {
-            var className = fullClassName
-            while (className.contains(".")) {
-                className = className.substringBeforeLast(".")
-                if (protectedClasses.contains(className)) {
-                    return false
-                }
-            }
-            return true
-        }
-        return false
+        return !protectedClassNamesMatcher.match(fullClassName)
     }
 
 }
