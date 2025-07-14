@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.AudioManager
@@ -139,8 +140,8 @@ class AudioPlayService : BaseService(),
         
         // 初始化WakeLock和WiFiLock
         if (useWakeLock) {
-            wakeLock.setReferenceCounted(false)
-            wifiLock.setReferenceCounted(false)
+            wakeLock?.setReferenceCounted(false)
+            wifiLock?.setReferenceCounted(false)
         }
         
         execute {
