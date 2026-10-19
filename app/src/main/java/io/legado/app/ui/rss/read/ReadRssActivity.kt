@@ -61,6 +61,7 @@ import io.legado.app.utils.splitNotBlank
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.textArray
 import io.legado.app.utils.toastOnUi
+import io.legado.app.utils.markBottomHandled
 import io.legado.app.utils.toggleSystemBar
 import io.legado.app.utils.viewbindingdelegate.viewBinding
 import io.legado.app.utils.visible
@@ -212,8 +213,10 @@ class ReadRssActivity : VMBaseActivity<ActivityRssReadBinding, ReadRssViewModel>
             val typeMask = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime()
             val insets = windowInsets.getInsets(typeMask)
             view.bottomPadding = insets.bottom
+            view.markBottomHandled()
             windowInsets
         }
+        binding.root.markBottomHandled()
     }
 
     @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")

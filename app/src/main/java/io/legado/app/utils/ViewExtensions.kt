@@ -271,6 +271,7 @@ fun View.applyStatusBarPadding(withInitialPadding: Boolean = false) {
         topPadding = initialPadding + insets.top
         windowInsets
     }
+    markTopHandled()
 }
 
 fun View.applyNavigationBarPadding(withInitialPadding: Boolean = false) {
@@ -279,6 +280,7 @@ fun View.applyNavigationBarPadding(withInitialPadding: Boolean = false) {
         bottomPadding = initialPadding + windowInsets.navigationBarHeight
         windowInsets
     }
+    markBottomHandled()
 }
 
 fun View.applyNavigationBarMargin(withInitialMargin: Boolean = false) {
@@ -289,6 +291,7 @@ fun View.applyNavigationBarMargin(withInitialMargin: Boolean = false) {
         }
         windowInsets
     }
+    markBottomHandled()
 }
 
 fun View.setBackgroundKeepPadding(@DrawableRes backgroundResId: Int) {

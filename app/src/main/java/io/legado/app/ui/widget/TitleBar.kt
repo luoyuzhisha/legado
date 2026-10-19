@@ -22,6 +22,8 @@ import io.legado.app.help.config.AppConfig
 import io.legado.app.lib.theme.elevation
 import io.legado.app.lib.theme.primaryColor
 import io.legado.app.utils.activity
+import io.legado.app.utils.markBottomHandled
+import io.legado.app.utils.markTopHandled
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import splitties.views.bottomPadding
 import splitties.views.topPadding
@@ -174,6 +176,12 @@ class TitleBar @JvmOverloads constructor(
                         bottomPadding = insets.bottom
                     }
                     windowInsets
+                }
+                if (fitStatusBar) {
+                    markTopHandled()
+                }
+                if (fitNavigationBar) {
+                    markBottomHandled()
                 }
             }
 

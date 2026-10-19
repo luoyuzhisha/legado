@@ -26,6 +26,7 @@ import io.legado.app.utils.inputStream
 import io.legado.app.utils.launch
 import io.legado.app.utils.readUri
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
+import io.legado.app.utils.markBottomHandled
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.toastOnUi
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -74,8 +75,10 @@ class BookInfoEditActivity :
             val typeMask = WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime()
             val insets = windowInsets.getInsets(typeMask)
             view.bottomPadding = insets.bottom
+            view.markBottomHandled()
             windowInsets
         }
+        binding.root.markBottomHandled()
     }
 
     private fun initEvent() = binding.run {

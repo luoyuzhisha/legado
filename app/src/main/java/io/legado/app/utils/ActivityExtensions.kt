@@ -75,9 +75,7 @@ val WindowManager.windowSize: DisplayMetrics
 
 @Suppress("DEPRECATION")
 fun Activity.fullScreen() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        window.setDecorFitsSystemWindows(true)
-    }
+    WindowCompat.setDecorFitsSystemWindows(window, false)
     window.decorView.systemUiVisibility =
         View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
     window.clearFlags(

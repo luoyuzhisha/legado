@@ -49,6 +49,7 @@ import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.share
 import io.legado.app.utils.shareWithQr
 import io.legado.app.utils.showDialogFragment
+import io.legado.app.utils.markBottomHandled
 import io.legado.app.utils.showHelp
 import io.legado.app.utils.startActivity
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -206,8 +207,10 @@ class BookSourceEditActivity :
             val imeHeight = windowInsets.imeHeight
             view.bottomPadding = if (imeHeight == 0) navigationBarHeight else 0
             softKeyboardTool.initialPadding = imeHeight
+            view.markBottomHandled()
             windowInsets
         }
+        binding.recyclerView.markBottomHandled()
     }
 
     override fun finish() {

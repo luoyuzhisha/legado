@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import androidx.annotation.CallSuper
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.legado.app.R
@@ -74,6 +75,18 @@ abstract class BaseService : LifecycleService() {
     override fun onTimeout(startId: Int) {
         super.onTimeout(startId)
         LogUtils.d(simpleName, "onTimeout startId:$startId")
+        stopSelf()
+    }
+
+    /**
+     * Android 15 起 dataSync 等前台服务超时会回调双参数版本，
+     * 单参数版本只用于 shortService，必须两个都处理。
+     */
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    @CallSuper
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        super.onTimeout(startId, fgsType)
+        LogUtils.d(simpleName, "onTimeout startId:$startId type:$fgsType")
         stopSelf()
     }
 

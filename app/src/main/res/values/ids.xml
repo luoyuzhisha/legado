@@ -14,4 +14,8 @@
 
     <item name="bettermovementmethod_highlight_background_span" type="id" />
 
+    <item name="tag_edge_to_edge_top" type="id" />
+    <item name="tag_edge_to_edge_bottom" type="id" />
+    <item name="tag_edge_to_edge_applied" type="id" />
+
 </resources>

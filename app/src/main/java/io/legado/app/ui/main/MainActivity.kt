@@ -43,6 +43,8 @@ import io.legado.app.ui.main.my.MyFragment
 import io.legado.app.ui.main.rss.RssFragment
 import io.legado.app.ui.widget.dialog.TextDialog
 import io.legado.app.utils.hideSoftInput
+import io.legado.app.utils.markBottomHandled
+import io.legado.app.utils.markTopHandled
 import io.legado.app.utils.isCreated
 import io.legado.app.utils.navigationBarHeight
 import io.legado.app.utils.observeEvent
@@ -192,6 +194,8 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
     }
 
     private fun initView() = binding.run {
+        // 顶部由各 Fragment 的 TitleBar 处理，避免根布局重复加状态栏 padding
+        root.markTopHandled()
         viewPagerMain.setEdgeEffectColor(primaryColor)
         viewPagerMain.offscreenPageLimit = 3
         viewPagerMain.adapter = adapter
@@ -207,6 +211,7 @@ class MainActivity : VMBaseActivity<ActivityMainBinding, MainViewModel>(),
             view.bottomPadding = height
             windowInsets.inset(0, 0, 0, height)
         }
+        bottomNavigationView.markBottomHandled()
     }
 
     /**

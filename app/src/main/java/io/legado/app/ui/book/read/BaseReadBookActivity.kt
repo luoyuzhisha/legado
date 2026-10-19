@@ -43,6 +43,7 @@ import io.legado.app.utils.gone
 import io.legado.app.utils.isTv
 import io.legado.app.utils.setLightStatusBar
 import io.legado.app.utils.setNavigationBarColorAuto
+import io.legado.app.utils.markBottomHandled
 import io.legado.app.utils.setOnApplyWindowInsetsListenerCompat
 import io.legado.app.utils.showDialogFragment
 import io.legado.app.utils.viewbindingdelegate.viewBinding
@@ -89,8 +90,10 @@ abstract class BaseReadBookActivity :
             view.updateLayoutParams {
                 height = insets.bottom
             }
+            view.markBottomHandled()
             windowInsets
         }
+        binding.navigationBar.markBottomHandled()
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
